@@ -87,12 +87,36 @@ class SongListAPIView(APIView):
 # It inherits from DRF's APIView to give us raw control over GET and POST methods.
 class PlaylistListAPIView(APIView):
     
-    # The get method fetches every single playlist in the database.
+    # The get method fetches every single playlist in the database, with optional search filtering.
     def get(self, request):
-        # We query the database to retrieve all playlist records.
+        # We start by fetching a base queryset of all playlists from our database.
         playlists = Playlist.objects.all()
         
-        # We serialize the entire collection.
+        # 1. We extract the optional 'genre' search term from the URL query parameters.
+        # For example, in /api/playlists/?genre=chill, genre_query will be "chill".
+        genre_query = request.query_params.get('genre')
+        
+        # 2. We extract the optional 'song' search term from the URL query parameters.
+        # For example, in /api/playlists/?song=midnight, song_query will be "midnight".
+        song_query = request.query_params.get('song')
+        
+        # 3. If a genre query term was typed by the user, we filter our playlists.
+        if genre_query:
+            # We filter the playlists where the linked genre's name contains the search term.
+            # '__icontains' makes the search case-insensitive, meaning "CHILL" and "chill" match the same way!
+            playlists = playlists.filter(genre__name__icontains=genre_query)
+            
+        # 4. If a song query term was typed by the user, we filter our playlists.
+        if song_query:
+            # We filter playlists containing any song whose title contains the search term case-insensitively.
+            playlists = playlists.filter(songs__title__icontains=song_query)
+            
+        # 5. When we query across Many-to-Many relationships (like songs in a playlist),
+        # Django generates SQL JOIN statements that can return duplicate rows for a single playlist.
+        # Calling .distinct() makes sure that each unique playlist is returned exactly once in our list!
+        playlists = playlists.distinct()
+        
+        # We serialize the filtered collection of playlists.
         # 'many=True' tells our PlaylistSerializer to loop through and translate a list of objects.
         serializer = PlaylistSerializer(playlists, many=True)
         

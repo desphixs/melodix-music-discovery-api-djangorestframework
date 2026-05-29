@@ -12,8 +12,8 @@ from rest_framework.response import Response
 from rest_framework import status
 
 # We import our database models and their respective serializers.
-from .models import Genre, Song, Playlist
-from .serializers import GenreSerializer, SongSerializer, PlaylistSerializer
+from .models import Genre, Song, Playlist, Comment
+from .serializers import GenreSerializer, SongSerializer, PlaylistSerializer, CommentSerializer
 
 
 # This class-based view manages the catalog of Genres.
@@ -237,5 +237,53 @@ class PlaylistDetailAPIView(APIView):
 
         # We return the compiled response dictionary with a standard 200 OK status.
         return Response(response_data, status=status.HTTP_200_OK)
+
+
+# This class-based view manages collaborative comments linked to a specific playlist.
+class PlaylistCommentsAPIView(APIView):
+    
+    # The get method fetches all comments belonging to a specific playlist.
+    def get(self, request, playlist_id):
+        # 1. Fetch the specific playlist by its unique ID.
+        # If it doesn't exist, we immediately return a clean 404 response.
+        playlist = get_object_or_404(Playlist, id=playlist_id)
+        
+        # 2. Retrieve all Comment records associated with this specific playlist.
+        # We order them by 'created_at' in ascending order so comments appear in thread order!
+        comments = playlist.comments.all().order_by('created_at')
+        
+        # 3. Serialize the list of comment objects.
+        # 'many=True' tells our CommentSerializer to translate a list of objects.
+        serializer = CommentSerializer(comments, many=True)
+        
+        # We return the translated list inside a standard Response with a 200 OK status.
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # The post method creates a new comment under a specific playlist.
+    def post(self, request, playlist_id):
+        # 1. Fetch the specific playlist by its unique ID.
+        # If it doesn't exist, we return a 404 Not Found error.
+        playlist = get_object_or_404(Playlist, id=playlist_id)
+        
+        # 2. Manually extract the comment fields from the incoming request.data payload.
+        content = request.data.get('content')
+        
+        # 3. Explicit validation: Ensure the comment has actual text written in it!
+        if not content or not content.strip():
+            # If content is blank or missing, return a customized bad request error dict.
+            return Response({"content": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # 4. Create and save the new Comment row in the database,
+        # associating it directly with our verified Playlist object!
+        comment = Comment.objects.create(
+            playlist=playlist,
+            content=content
+        )
+        
+        # 5. Translate the newly created comment record into JSON format.
+        serializer = CommentSerializer(comment)
+        
+        # We return the translated object with a "201 Created" success status.
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 

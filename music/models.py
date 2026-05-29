@@ -58,3 +58,25 @@ class Playlist(models.Model):
         # We return the playlist title.
         return self.title
 
+
+# This Comment class defines a database table to hold collaborative comments linked to playlists.
+class Comment(models.Model):
+    # A text field to hold the written content of the comment.
+    content = models.TextField()
+    
+    # A date and time field that automatically records the moment the comment is saved to the database.
+    # 'auto_now_add=True' ensures that this field is set only when the comment is first created!
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # A ForeignKey represents a "One-to-Many" database relationship.
+    # In this case, each comment is linked to EXACTLY ONE Playlist.
+    # 'on_delete=models.CASCADE' acts like a domino effect: if a playlist is deleted,
+    # all comments belonging to that playlist are automatically deleted as well!
+    # 'related_name="comments"' allows us to query all comments for a playlist using playlist.comments.all()
+    playlist = models.ForeignKey(Playlist, on_delete=models.CASCADE, related_name='comments')
+
+    # Tells Django how to display this comment in plain text (e.g., inside the Admin panel).
+    def __str__(self):
+        # We display a preview of the content, limited to the first 50 characters.
+        return f"Comment on '{self.playlist.title}': {self.content[:50]}"
+

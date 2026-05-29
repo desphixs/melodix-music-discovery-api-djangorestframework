@@ -3,8 +3,8 @@
 # and they also validate incoming JSON requests to make sure they are safe and properly formatted before saving them.
 from rest_framework import serializers
 
-# We import our custom Genre, Song, and Playlist models.
-from .models import Genre, Song, Playlist
+# We import our custom Genre, Song, Playlist, and Comment models.
+from .models import Genre, Song, Playlist, Comment
 
 
 # The GenreSerializer maps the Genre model to a JSON structure.
@@ -41,4 +41,14 @@ class PlaylistSerializer(serializers.ModelSerializer):
         model = Playlist
         
         # We translate all fields (id, title, description, genre, songs).
+        fields = '__all__'
+
+
+# The CommentSerializer maps the Comment model to a JSON structure.
+class CommentSerializer(serializers.ModelSerializer):
+    class Meta:
+        # We associate this translator with our Comment database model.
+        model = Comment
+        
+        # We translate all fields (id, content, created_at, playlist).
         fields = '__all__'

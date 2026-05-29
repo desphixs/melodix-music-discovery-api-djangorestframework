@@ -1,5 +1,7 @@
-# We import the standard rendering tool from Django shortcuts.
-from django.shortcuts import render
+# We import standard rendering and lookup shortcuts from Django.
+from django.shortcuts import render, get_object_or_404
+# We import Paginator and EmptyPage from django's core pagination package to page our song listings manually.
+from django.core.paginator import Paginator, EmptyPage
 # We import the core class APIView from rest_framework.views.
 # APIView is the rawest form of class-based view provided by DRF, letting us build clean GET and POST methods.
 from rest_framework.views import APIView
@@ -144,4 +146,72 @@ class PlaylistListAPIView(APIView):
         
         # We return the saved record inside our Response along with a "201 Created" success status.
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+# This class-based view handles displaying details of a single Playlist with paginated songs.
+class PlaylistDetailAPIView(APIView):
+    
+    # The get method fetches a specific playlist by its ID and manually pages its tracklist.
+    def get(self, request, pk):
+        # 1. Fetch the specific playlist by its unique primary key ID.
+        # If the playlist doesn't exist, we raise a clean 404 Not Found error automatically.
+        playlist = get_object_or_404(Playlist, id=pk)
+        
+        # 2. Extract the 'page' and 'size' parameters from the GET request URL query parameters.
+        # For example, in /api/playlists/1/?page=2&size=3, we read page=2 and size=3.
+        # We wrap these in a try/except block to handle invalid strings and default them safely.
+        try:
+            page_number = int(request.query_params.get('page', 1))
+        except ValueError:
+            page_number = 1
+            
+        try:
+            page_size = int(request.query_params.get('size', 5))
+        except ValueError:
+            page_size = 5
+
+        # 3. Retrieve all Song objects associated with this specific playlist.
+        # We order them by their unique 'id' to ensure pagination order is always stable.
+        songs_queryset = playlist.songs.all().order_by('id')
+
+        # 4. Use Django's built-in Paginator tool to slice and organize our song collection.
+        # We pass our full songs query and the desired count of items per page.
+        paginator = Paginator(songs_queryset, page_size)
+
+        # 5. Extract the specific page requested by the client.
+        try:
+            page_obj = paginator.page(page_number)
+        except EmptyPage:
+            # If the user requests an empty page (like page 999), we assign an empty page slice.
+            page_obj = []
+
+        # 6. Serialize our playlist details and paginated songs separately.
+        # This keeps our logic extremely explicit and transparent!
+        paginated_songs_data = SongSerializer(page_obj, many=True).data
+
+        # 7. Construct a custom dictionary response combining base details and page metadata.
+        response_data = {
+            "id": playlist.id,
+            "title": playlist.title,
+            "description": playlist.description,
+            # We serialize the single genre object to show full nested info (id and name)
+            "genre": GenreSerializer(playlist.genre).data,
+            
+            # Metadata block detailing exactly how pages are mapped
+            "pagination": {
+                "total_songs": paginator.count,
+                "total_pages": paginator.num_pages,
+                "current_page": page_number,
+                "page_size": page_size,
+                "has_next": page_obj.has_next() if hasattr(page_obj, 'has_next') else False,
+                "has_previous": page_obj.has_previous() if hasattr(page_obj, 'has_previous') else False,
+            },
+            
+            # The paginated song array
+            "songs": paginated_songs_data
+        }
+
+        # We return the compiled response dictionary with a standard 200 OK status.
+        return Response(response_data, status=status.HTTP_200_OK)
+
 

@@ -10,8 +10,8 @@ from rest_framework.response import Response
 from rest_framework import status
 
 # We import our database models and their respective serializers.
-from .models import Genre, Song
-from .serializers import GenreSerializer, SongSerializer
+from .models import Genre, Song, Playlist
+from .serializers import GenreSerializer, SongSerializer, PlaylistSerializer
 
 
 # This class-based view manages the catalog of Genres.
@@ -79,3 +79,69 @@ class SongListAPIView(APIView):
             
         # Return validation errors back to the caller with a "400 Bad Request" code.
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# This class-based view manages listing all playlists and creating new ones.
+# It inherits from DRF's APIView to give us raw control over GET and POST methods.
+class PlaylistListAPIView(APIView):
+    
+    # The get method fetches every single playlist in the database.
+    def get(self, request):
+        # We query the database to retrieve all playlist records.
+        playlists = Playlist.objects.all()
+        
+        # We serialize the entire collection.
+        # 'many=True' tells our PlaylistSerializer to loop through and translate a list of objects.
+        serializer = PlaylistSerializer(playlists, many=True)
+        
+        # We return the translated JSON data to the client with a 200 OK code.
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # The post method manually handles extracting fields, looking up relationships, and saving the playlist.
+    def post(self, request):
+        # 1. We manually extract the parameters from request.data
+        title = request.data.get('title')
+        description = request.data.get('description', '')
+        genre_id = request.data.get('genre')
+        song_ids = request.data.get('songs', [])
+
+        # 2. Explicit validation check: Ensure vital required fields are present
+        if not title:
+            # If the title is missing, we return a customized bad request error dict.
+            return Response({"title": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+        if not genre_id:
+            # If the genre is missing, we return a customized bad request error dict.
+            return Response({"genre": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. Look up the Genre object from our database
+        try:
+            # We fetch the specific genre row matching the provided ID number.
+            genre = Genre.objects.get(id=genre_id)
+        except Genre.DoesNotExist:
+            # If the ID does not exist in the database, we return a clear validation error.
+            return Response({"genre": ["Genre not found."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 4. Create and save the core Playlist record in the database.
+        # We assign the fetched Genre instance directly to our ForeignKey field!
+        playlist = Playlist.objects.create(
+            title=title,
+            description=description,
+            genre=genre
+        )
+
+        # 5. Fetch all matching Song rows from the database using their ID numbers.
+        # The id__in lookup works like SQL's IN operator (e.g., SELECT * FROM songs WHERE id IN (1, 2, 3)).
+        songs_from_db = Song.objects.filter(id__in=song_ids)
+
+        # 6. Establish the Many-to-Many connections inside the secret join table.
+        # The .songs.set() helper handles writing the correct links into the mapping table automatically.
+        playlist.songs.set(songs_from_db)
+
+        # 7. Translate the completed playlist record.
+        # Because we configured read-only nested serializers inside PlaylistSerializer,
+        # it will automatically render the full genre details and song lists in our JSON response!
+        serializer = PlaylistSerializer(playlist)
+        
+        # We return the saved record inside our Response along with a "201 Created" success status.
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+

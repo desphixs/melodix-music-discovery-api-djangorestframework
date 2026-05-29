@@ -3,27 +3,42 @@
 # and they also validate incoming JSON requests to make sure they are safe and properly formatted before saving them.
 from rest_framework import serializers
 
-# We import our custom models from the models.py file.
-from .models import Genre, Song
+# We import our custom Genre, Song, and Playlist models.
+from .models import Genre, Song, Playlist
+
 
 # The GenreSerializer maps the Genre model to a JSON structure.
-# We inherit from ModelSerializer to let Django REST Framework write most of the boilerplate for us!
 class GenreSerializer(serializers.ModelSerializer):
-    # The Meta subclass holds configuration parameters for the serializer.
     class Meta:
-        # We tell the serializer which database table it is translating.
         model = Genre
-        
-        # We define exactly which fields from the table we want to expose to our API.
-        # '__all__' is a special shortcut that automatically includes all columns from the database table.
         fields = '__all__'
 
 
 # The SongSerializer maps the Song model to a JSON structure.
 class SongSerializer(serializers.ModelSerializer):
     class Meta:
-        # We associate this translator with our Song database model.
         model = Song
+        fields = '__all__'
+
+
+# The PlaylistSerializer maps the Playlist model to a JSON structure.
+# This version is kept extremely simple and beginner-friendly!
+# It does not contain any complex custom methods or overrides.
+class PlaylistSerializer(serializers.ModelSerializer):
+    
+    # We declare the genre field as nested. When we read a playlist,
+    # it will show the full details of the Genre (id and name) instead of just the ID number.
+    # We set 'read_only=True' because we will handle creating and linking the genre manually in our view!
+    genre = GenreSerializer(read_only=True)
+    
+    # We declare the songs field as nested. When we read a playlist,
+    # it will show the full list of songs with all their details (id, title, artist, duration).
+    # We set 'read_only=True' because we will handle adding songs to the playlist manually in our view!
+    songs = SongSerializer(many=True, read_only=True)
+
+    class Meta:
+        # We associate this translator with our Playlist database model.
+        model = Playlist
         
-        # Again, we expose all of the columns (id, title, artist, duration) to our JSON output.
+        # We translate all fields (id, title, description, genre, songs).
         fields = '__all__'

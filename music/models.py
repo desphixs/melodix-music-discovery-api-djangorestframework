@@ -32,3 +32,29 @@ class Song(models.Model):
     def __str__(self):
         # We combine the title and the artist to display it beautifully.
         return f"{self.title} by {self.artist}"
+
+
+# This Playlist class defines a database table that groups multiple songs together under a specific genre.
+class Playlist(models.Model):
+    # A text field to hold the playlist's title (e.g., "Chill Sunday Morning").
+    title = models.CharField(max_length=255)
+    
+    # A text field for a longer description explaining the mood or purpose of the playlist.
+    description = models.TextField()
+
+    # A ForeignKey represents a "One-to-Many" database relationship.
+    # In this case, each playlist is linked to EXACTLY ONE Genre.
+    # 'on_delete=models.PROTECT' is a security guard: it prevents deleting a genre if it is currently being used by any playlists.
+    # 'related_name="playlists"' allows us to query all playlists associated with a genre by writing genre.playlists.all()
+    genre = models.ForeignKey(Genre, on_delete=models.PROTECT, related_name='playlists')
+
+    # A ManyToManyField represents a "Many-to-Many" database relationship.
+    # A playlist can contain many songs, and the same song can belong to many different playlists.
+    # 'related_name="playlists"' lets us query all playlists a song belongs to by writing song.playlists.all()
+    songs = models.ManyToManyField(Song, related_name='playlists')
+
+    # Tells Django how to display this playlist in text format.
+    def __str__(self):
+        # We return the playlist title.
+        return self.title
+
